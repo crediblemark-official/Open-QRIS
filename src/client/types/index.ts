@@ -39,6 +39,23 @@ export interface Charge {
   createdAt: string;
 }
 
+// ===== Server-side pagination transaksi (B12) =====
+export interface TransactionQueryParams {
+  search?: string;
+  status?: string;
+  dateRange?: string;
+  page: number;
+  limit: number;
+}
+
+export interface TransactionPageResult {
+  items: Charge[];
+  pagination: { page: number; limit: number; total: number; totalPages: number };
+  counts?: Record<string, number>;
+}
+
+export type TransactionServerFetch = (params: TransactionQueryParams) => Promise<TransactionPageResult>;
+
 export interface WebhookLog {
   id: string;
   tenantId: string;

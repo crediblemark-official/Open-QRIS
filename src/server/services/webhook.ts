@@ -21,7 +21,9 @@ export async function dispatchPaymentWebhook(
   }
 
   const payload = {
-    event: 'payment.success',
+    // Sesuai kontrak dokumentasi README (Verifikasi Webhook):
+    // event "charge.paid", status "PAID", paid_at ISO-8601
+    event: 'charge.paid',
     timestamp: new Date().toISOString(),
     attempt,
     data: {
@@ -33,7 +35,7 @@ export async function dispatchPaymentWebhook(
       status: charge.status,
       customer_name: charge.customerName || null,
       customer_email: charge.customerEmail || null,
-      paid_at: charge.paidAt || new Date().toISOString(),
+      paid_at: charge.paidAt ? new Date(charge.paidAt).toISOString() : new Date().toISOString(),
     },
   };
 
@@ -51,10 +53,10 @@ export async function dispatchPaymentWebhook(
       headers: {
         'Content-Type': 'application/json',
         'User-Agent': 'OpenQRIS-Webhook-Engine/1.1',
-        'X-QRIS-Signature': signature,
-        'X-QRIS-Event': 'payment.success',
-        'X-QRIS-Delivery': logId,
-        'X-QRIS-Attempt': String(attempt),
+        'X-OpenQRIS-Signature': signature,
+        'X-OpenQRIS-Event': 'charge.paid',
+        'X-OpenQRIS-Delivery': logId,
+        'X-OpenQRIS-Attempt': String(attempt),
       },
       body: payloadString,
       signal: AbortSignal.timeout(10000), // 10s timeout

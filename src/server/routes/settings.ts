@@ -24,14 +24,24 @@ export const settingsRoutes = new Elysia({ prefix: '/v1' })
         query.status !== undefined ||
         query.date_range !== undefined
       ) {
-        const paginated = await store.getChargesPaginated({
-          tenantId,
-          search: query.search as string,
-          status: query.status as string,
-          dateRange: query.date_range as string,
-          page: query.page ? Number(query.page) : 1,
-          limit: query.limit ? Number(query.limit) : 25,
-        });
+        const tenantSearch = query.search as string;
+        const tenantDateRange = query.date_range as string;
+        const [paginated, counts] = await Promise.all([
+          store.getChargesPaginated({
+            tenantId,
+            search: tenantSearch,
+            status: query.status as string,
+            dateRange: tenantDateRange,
+            page: query.page ? Number(query.page) : 1,
+            limit: query.limit ? Number(query.limit) : 25,
+          }),
+          // Counts per status (ikuti filter tenant/search/date, tanpa filter status)
+          store.getChargesStatusCounts({
+            tenantId,
+            search: tenantSearch,
+            dateRange: tenantDateRange,
+          }),
+        ]);
         return {
           success: true,
           data: paginated.items,
@@ -41,6 +51,7 @@ export const settingsRoutes = new Elysia({ prefix: '/v1' })
             total: paginated.total,
             totalPages: paginated.totalPages,
           },
+          counts,
         };
       }
       return { success: true, data: await store.getCharges(tenantId) };

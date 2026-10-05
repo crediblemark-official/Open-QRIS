@@ -175,6 +175,9 @@ export const chargesRoutes = new Elysia({ prefix: '/v1' })
         data: {
           ...charge,
           checkout_url: `${originUrl}/checkout/${charge.id}`,
+          // Dinamis per request agar tombol Simulasi Bayar di checkout publik
+          // hanya muncul jika server memang mengizinkan sandbox
+          sandbox: process.env.SANDBOX_MODE === 'true',
         },
       };
     },

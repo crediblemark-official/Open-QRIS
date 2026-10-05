@@ -57,7 +57,7 @@ File APK akan di-*generate* di `android/app/build/outputs/apk/debug/app-debug.ap
    - Cari **OpenQRIS Listener** di daftar izin, lalu centang / aktifkan.
 4. **Isi Konfigurasi**:
    - Masukkan **URL Webhook Gateway** (contoh: `https://domainanda.com/v1/webhooks/listener`).
-   - Masukkan **Device Token / API Key** toko Anda (bisa didapatkan di dashboard menu **SaaS Clients -> Pairing HP**). Dengan token ini, HP akan terikat eksklusif ke merchant Anda (anti-bentrok) dan status baterai/koneksi HP akan terpantau live di dashboard.
+   - Masukkan **Device Token** toko Anda (bisa didapatkan di dashboard menu **SaaS Clients -> Pairing HP** / **Listener**). Dengan token ini, HP akan terikat eksklusif ke merchant Anda (anti-bentrok) dan status baterai/koneksi HP akan terpantau live di dashboard. Jangan masukkan Secret Key (`sk_live_`) - HP hanya menerima Device Token (`dev_...`).
    - Klik **"Simpan Pengaturan"**.
 5. **Uji Coba**:
    - Klik **"Tes Sinyal Gateway"**. Jika muncul `HTTP 200`, maka HP dan Gateway server sudah terhubung sempurna!

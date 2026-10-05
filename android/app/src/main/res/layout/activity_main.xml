@@ -158,11 +158,11 @@
                 android:fontFamily="monospace"
                 android:layout_marginTop="4dp" />
 
-            <!-- Secret Key / Device Token -->
+            <!-- Device Token (bukan Secret Key) -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Device Token / API Key Merchant:"
+                android:text="Device Token Merchant:"
                 android:textSize="12sp"
                 android:textStyle="bold"
                 android:textColor="@color/text_primary"
@@ -172,7 +172,7 @@
                 android:id="@+id/et_secret_key"
                 android:layout_width="match_parent"
                 android:layout_height="40dp"
-                android:hint="dev_... atau sk_live_..."
+                android:hint="dev_... (Device Token dari menu Listener)"
                 android:inputType="text"
                 android:textSize="12sp"
                 android:textColor="@color/text_primary"

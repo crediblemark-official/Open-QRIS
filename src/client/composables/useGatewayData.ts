@@ -53,7 +53,9 @@ export function useGatewayData(options: GatewayDataOptions) {
       const [resSettings, resTenants, resTx] = await Promise.all([
         authFetch('/v1/settings').then((r) => r.ok ? r.json() : null),
         authFetch('/v1/apps').then((r) => r.ok ? r.json() : null),
-        authFetch('/v1/transactions').then((r) => r.ok ? r.json() : null),
+        // B12: jangan load seluruh tabel transaksi - ambil 100 terbaru saja.
+        // Halaman riwayat memakai fetchTransactions() (server-side pagination).
+        authFetch('/v1/transactions?limit=100').then((r) => r.ok ? r.json() : null),
       ]);
 
       if (resSettings && resSettings.success) {
@@ -200,6 +202,38 @@ export function useGatewayData(options: GatewayDataOptions) {
     }
   };
 
+  // Fetch transaksi server-side (pagination + filter di server, bukan load semua di browser)
+  const fetchTransactions = async (
+    params: {
+      search?: string;
+      status?: string;
+      dateRange?: string;
+      page?: number;
+      limit?: number;
+    } = {}
+  ): Promise<{
+    items: Charge[];
+    pagination: { page: number; limit: number; total: number; totalPages: number };
+    counts?: Record<string, number>;
+  }> => {
+    const qs = new URLSearchParams();
+    qs.set('page', String(params.page ?? 1));
+    qs.set('limit', String(params.limit ?? 25));
+    if (params.search?.trim()) qs.set('search', params.search.trim());
+    if (params.status && params.status !== 'ALL') qs.set('status', params.status);
+    if (params.dateRange && params.dateRange !== 'ALL') qs.set('date_range', params.dateRange);
+
+    const res = await authFetch(`/v1/transactions?${qs.toString()}`);
+    if (!res.ok) throw new Error('Gagal memuat transaksi');
+    const json = await res.json();
+    if (!json.success) throw new Error(json.message || 'Gagal memuat transaksi');
+    return {
+      items: (json.data || []) as Charge[],
+      pagination: json.pagination || { page: 1, limit: params.limit ?? 25, total: 0, totalPages: 1 },
+      counts: json.counts,
+    };
+  };
+
   // Simulate Paid
   const simulatePaid = async (chargeId: string) => {
     try {
@@ -229,6 +263,7 @@ export function useGatewayData(options: GatewayDataOptions) {
     listenerUrl,
     decodeQRIS,
     loadData,
+    fetchTransactions,
     saveMasterQRIS,
     createSaaSApp,
     deleteSaaSApp,

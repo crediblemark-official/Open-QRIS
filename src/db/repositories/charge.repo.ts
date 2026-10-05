@@ -1,6 +1,6 @@
 import { db } from '../index';
 import { charges } from '../schema';
-import { eq, desc, and, gte, lte, or, like, count, sql, isNotNull } from 'drizzle-orm';
+import { eq, desc, and, gte, lte, or, like, count, sql, isNotNull, type SQL } from 'drizzle-orm';
 import type { Charge } from '../schema';
 
 export interface ChargeFilterOptions {
@@ -50,6 +50,46 @@ export class ChargeRepository {
     return rows.map(this.mapRow);
   }
 
+  /**
+   * Bangun kondisi WHERE dari filter. `includeStatus: false` dipakai untuk
+   * agregasi counts (dihitung untuk semua status sekaligus).
+   */
+  private buildConditions(options: {
+    tenantId?: string;
+    search?: string;
+    status?: string;
+    dateRange?: string;
+    includeStatus?: boolean;
+  }): SQL[] {
+    const conditions: SQL[] = [];
+    if (options.tenantId) conditions.push(eq(charges.tenantId, options.tenantId));
+    if (options.includeStatus !== false && options.status && options.status !== 'ALL') {
+      conditions.push(eq(charges.status, options.status as any));
+    }
+
+    if (options.dateRange && options.dateRange !== 'ALL') {
+      const now = Date.now();
+      let msAgo = 0;
+      if (options.dateRange === 'TODAY') msAgo = 24 * 3600 * 1000;
+      else if (options.dateRange === '7D') msAgo = 7 * 24 * 3600 * 1000;
+      else if (options.dateRange === '30D') msAgo = 30 * 24 * 3600 * 1000;
+      if (msAgo > 0) conditions.push(gte(charges.createdAt, new Date(now - msAgo)));
+    }
+
+    if (options.search?.trim()) {
+      const q = `%${options.search.trim()}%`;
+      // ILIKE = case-insensitive (konsisten dengan pencarian di client yang toLowerCase)
+      conditions.push(sql`(
+        ${charges.orderId} ILIKE ${q} OR 
+        ${charges.id} ILIKE ${q} OR 
+        ${charges.customerName} ILIKE ${q} OR 
+        ${charges.tenantName} ILIKE ${q}
+      )`);
+    }
+
+    return conditions;
+  }
+
   async getPaginated(options: {
     tenantId?: string;
     search?: string;
@@ -62,30 +102,11 @@ export class ChargeRepository {
     const limit = Math.min(200, Math.max(1, options.limit ?? 25));
     const offset = (page - 1) * limit;
 
-    const conditions = [];
-    if (options.tenantId) conditions.push(eq(charges.tenantId, options.tenantId));
-    if (options.status && options.status !== 'ALL') conditions.push(eq(charges.status, options.status as any));
-    
-    if (options.dateRange && options.dateRange !== 'ALL') {
-      const now = Date.now();
-      let msAgo = 0;
-      if (options.dateRange === 'TODAY') msAgo = 24 * 3600 * 1000;
-      else if (options.dateRange === '7D') msAgo = 7 * 24 * 3600 * 1000;
-      else if (options.dateRange === '30D') msAgo = 30 * 24 * 3600 * 1000;
-      if (msAgo > 0) conditions.push(gte(charges.createdAt, new Date(now - msAgo)));
-    }
-
-    if (options.search?.trim()) {
-      const q = `%${options.search.trim()}%`;
-      conditions.push(sql`(
-        ${charges.orderId} LIKE ${q} OR 
-        ${charges.id} LIKE ${q} OR 
-        ${charges.customerName} LIKE ${q} OR 
-        ${charges.tenantName} LIKE ${q}
-      )`);
-    }
-
-    const whereClause = conditions.length > 0 ? sql`${conditions[0]}${conditions.slice(1).map(c => sql` AND ${c}`)}` : undefined;
+    // Gabungkan semua kondisi dengan AND yang valid.
+    // Sebelumnya: sql`${conditions[0]}${conditions.slice(1).map(...)}` meng-interpolasi
+    // ARRAY sehingga menghasilkan SQL rusak (mis. "$1( AND ...)") saat filter > 1.
+    const conditions = this.buildConditions(options);
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
     const [countResult] = await db.select({ count: count() }).from(charges).where(whereClause);
     const total = Number(countResult?.count ?? 0);
@@ -105,6 +126,36 @@ export class ChargeRepository {
       limit,
       totalPages,
     };
+  }
+
+  /**
+   * Jumlah transaksi per status (mengikuti filter tenant/search/dateRange,
+   * tanpa filter status) untuk pill "Semua / Lunas / Menunggu / Kedaluwarsa".
+   */
+  async getStatusCounts(options: {
+    tenantId?: string;
+    search?: string;
+    dateRange?: string;
+  } = {}): Promise<Record<'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED', number>> {
+    const conditions = this.buildConditions({ ...options, includeStatus: false });
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const rows = await db
+      .select({ status: charges.status, total: count() })
+      .from(charges)
+      .where(whereClause)
+      .groupBy(charges.status);
+
+    const counts: Record<'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED', number> = {
+      PENDING: 0,
+      PAID: 0,
+      EXPIRED: 0,
+      CANCELLED: 0,
+    };
+    for (const row of rows) {
+      if (row.status in counts) counts[row.status as keyof typeof counts] = Number(row.total);
+    }
+    return counts;
   }
 
   async getById(id: string) {

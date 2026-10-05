@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
 import { Elysia } from 'elysia';
 import { webhooksRoutes } from '../src/server/routes/webhooks';
+import { chargesRoutes } from '../src/server/routes/charges';
 import { createDynamicCharge } from '../src/server/services/qris';
 import { store, type TenantApp } from '../src/server/services/store';
 import { chargeRepo } from '../src/db/repositories/charge.repo';
@@ -34,6 +35,7 @@ const AMT_PAID = 7320001;
 const AMT_EXPIRED = 7330001;
 const AMT_TENANT_B = 7340001;
 const AMT_UNKNOWN = 7990001;
+const AMT_E2E = 7410001; // alur end-to-end HTTP create-charge
 
 beforeAll(async () => {
   const settings = await store.getSettings();
@@ -182,5 +184,105 @@ describe('B2 - pencocokan nominal scoped tenant & expiry (satu and(...), bukan .
     const body = await res.json();
     expect(body.success).toBe(false);
     expect(body.matched).toBe(false);
+  });
+});
+
+describe('Alur end-to-end: POST /v1/charges (HTTP) sampai matching pembayaran', () => {
+  const chargeApp = new Elysia().use(chargesRoutes);
+  let created: any;
+
+  const postCharge = (body: Record<string, unknown>, headers: Record<string, string> = {}) =>
+    chargeApp.handle(
+      new Request('http://localhost/v1/charges', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...headers },
+        body: JSON.stringify(body),
+      })
+    );
+
+  const getCharge = (id: string) =>
+    chargeApp.handle(new Request(`http://localhost/v1/charges/${id}`));
+
+  it('POST /v1/charges tanpa kredensial ditolak 401', async () => {
+    const res = await postCharge({ order_id: 'test-e2e-noauth', amount: AMT_E2E });
+    expect(res.status).toBe(401);
+    const json = await res.json();
+    expect(json.code).toBe('UNAUTHORIZED');
+  });
+
+  it('POST /v1/charges dengan X-Api-Key membuat tagihan QRIS dinamis', async () => {
+    const res = await postCharge(
+      { order_id: 'test-e2e-invoice', amount: AMT_E2E, customer_name: 'Budi Santoso' },
+      { 'x-api-key': tenantA.secretKey }
+    );
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.status).toBe('success');
+
+    created = json.data;
+    expect(created.charge_id).toMatch(/^ch_/);
+    expect(created.order_id).toBe('test-e2e-invoice');
+    expect(created.amount).toBe(AMT_E2E);
+    expect(created.status).toBe('PENDING');
+    expect(created.total_amount).toBeGreaterThanOrEqual(AMT_E2E);
+    // expires_at ter-serialize sebagai string ISO (dari Date)
+    expect(typeof created.expires_at).toBe('string');
+    expect(created.expires_at).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
+    expect(created.raw_qris.length).toBeGreaterThan(100);
+    expect(created.qr_data_url.startsWith('data:image/png')).toBe(true);
+    expect(created.checkout_url).toContain(created.charge_id);
+  });
+
+  it('GET /v1/charges/:id menampilkan tagihan PENDING', async () => {
+    const res = await getCharge(created.charge_id);
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.data.status).toBe('PENDING');
+    expect(json.data.paidAt ?? null).toBeNull();
+  });
+
+  it('device token salah ditolak 401 dan tagihan tetap PENDING', async () => {
+    const res = await postListener(
+      { amount: created.total_amount },
+      { 'x-device-token': 'dev_salah123' }
+    );
+    expect(res.status).toBe(401);
+
+    const chargeRes = await getCharge(created.charge_id);
+    const chargeBody = await chargeRes.json();
+    expect(chargeBody.data.status).toBe('PENDING');
+  });
+
+  it('nominal salah -> matched false, tagihan tetap PENDING', async () => {
+    const res = await postListener(
+      { amount: created.total_amount - 1 },
+      { 'x-device-token': tenantA.deviceToken! }
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.matched).toBe(false);
+
+    const chargeRes = await getCharge(created.charge_id);
+    const chargeBody = await chargeRes.json();
+    expect(chargeBody.data.status).toBe('PENDING');
+  });
+
+  it('nominal tepat + device token valid -> matched, tagihan menjadi PAID', async () => {
+    const res = await postListener(
+      { amount: created.total_amount, sender: 'BUDI' },
+      { 'x-device-token': tenantA.deviceToken! }
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.matched).toBe(true);
+    expect(body.charge_id).toBe(created.charge_id);
+    expect(body.amount).toBe(created.total_amount);
+
+    const chargeRes = await getCharge(created.charge_id);
+    const chargeBody = await chargeRes.json();
+    expect(chargeBody.data.status).toBe('PAID');
+    expect(typeof chargeBody.data.paidAt).toBe('string');
+    expect(chargeBody.data.paidAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
 });

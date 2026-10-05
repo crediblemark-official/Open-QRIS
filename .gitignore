@@ -44,3 +44,4 @@ WhatsApp Image*
 **/build/
 *.apk
 *.aab
+local.properties

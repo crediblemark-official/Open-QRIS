@@ -201,7 +201,7 @@ function openqris_init_gateway_class() {
          */
         public function handle_webhook_callback() {
             $raw_payload = file_get_contents('php://input');
-            $signature   = isset($_SERVER['HTTP_X_QRIS_SIGNATURE']) ? sanitize_text_field($_SERVER['HTTP_X_QRIS_SIGNATURE']) : '';
+            $signature   = isset($_SERVER['HTTP_X_OPENQRIS_SIGNATURE']) ? sanitize_text_field($_SERVER['HTTP_X_OPENQRIS_SIGNATURE']) : '';
 
             if (empty($raw_payload)) {
                 status_header(400);
@@ -242,7 +242,7 @@ function openqris_init_gateway_class() {
             }
 
             $event = isset($payload['event']) ? $payload['event'] : '';
-            if ($event === 'payment.success') {
+            if ($event === 'charge.paid') {
                 $charge_id = sanitize_text_field($payload['data']['charge_id']);
                 $amount    = number_format($payload['data']['total_amount'], 0, ',', '.');
                 $paid_at   = sanitize_text_field($payload['data']['paid_at']);

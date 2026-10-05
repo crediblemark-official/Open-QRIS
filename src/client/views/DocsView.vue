@@ -124,7 +124,7 @@ print("Checkout URL:", res["data"]["checkout_url"])`,
   webhook: `// Webhook endpoint example (Node.js/Express)
 app.post('/api/webhook/qris', express.json(), async (req, res) => {
   // Verify signature
-  const signature = req.headers['x-qris-signature'];
+  const signature = req.headers['x-openqris-signature'];
   const payload = JSON.stringify(req.body);
   const expectedSignature = crypto
     .createHmac('sha256', process.env.MERCHANT_SECRET_KEY)
@@ -136,7 +136,7 @@ app.post('/api/webhook/qris', express.json(), async (req, res) => {
   }
   
   const { event, data } = req.body;
-  if (event === 'payment.success') {
+  if (event === 'charge.paid') {
     console.log('Payment received:', data);
     // Update order status in your database
     await updateOrderStatus(data.order_id, 'paid');

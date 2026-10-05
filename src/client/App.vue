@@ -97,6 +97,7 @@ const {
   listenerUrl,
   decodeQRIS,
   loadData,
+  fetchTransactions,
   saveMasterQRIS,
   createSaaSApp,
   deleteSaaSApp,
@@ -251,6 +252,7 @@ onMounted(async () => {
         <TransactionsView
           v-else-if="activeTab === 'transactions'"
           :transactions="transactions"
+          :serverFetch="fetchTransactions"
           :tenants="tenants"
           :currentUser="currentUser || undefined"
           :isMerchantMode="isMerchantMode"

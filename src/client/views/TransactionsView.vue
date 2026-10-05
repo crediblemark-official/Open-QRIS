@@ -2,7 +2,7 @@
 import { ref, computed } from 'vue';
 import TransactionTable from '../components/TransactionTable.vue';
 import PaymentLinkModal from '../components/PaymentLinkModal.vue';
-import type { Charge, Tenant, User } from '../types';
+import type { Charge, Tenant, User, TransactionServerFetch } from '../types';
 
 const props = defineProps<{
   transactions: Charge[];
@@ -10,6 +10,7 @@ const props = defineProps<{
   currentUser?: User | null;
   isMerchantMode: boolean;
   authToken?: string;
+  serverFetch?: TransactionServerFetch;
 }>();
 
 const emit = defineEmits<{
@@ -30,6 +31,7 @@ const defaultTenantId = computed(() => props.currentUser?.tenant?.id || props.te
   <div>
     <TransactionTable
       :transactions="transactions"
+      :serverFetch="serverFetch"
       :showTenantColumn="isPlatformView"
       :enableDateFilter="true"
       :initialPageSize="25"

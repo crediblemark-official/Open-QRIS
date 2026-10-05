@@ -39,6 +39,9 @@ const copiedChargeId = ref(false);
 const copiedReceipt = ref(false);
 const activeTab = ref<'ewallet' | 'm-banking'>('ewallet');
 let checkoutInterval: any = null;
+// Tombol Simulasi Bayar hanya muncul jika server mengaktifkan SANDBOX_MODE
+const showSimulate = ref(false);
+const simulateError = ref('');
 
 const loadCheckout = async () => {
   if (!props.chargeId) return;
@@ -48,6 +51,7 @@ const loadCheckout = async () => {
     const json = await res.json();
     if (json.status === 'success') {
       checkoutCharge.value = json.data;
+      showSimulate.value = json.data.sandbox === true;
       updateCheckoutTimer();
       if (checkoutCharge.value.status === 'PENDING') {
         startPollingCheckout();
@@ -93,6 +97,7 @@ const startPollingCheckout = () => {
 };
 
 const onSimulatePaid = async () => {
+  simulateError.value = '';
   try {
     const res = await fetch(`/v1/charges/${props.chargeId}/simulate-paid`, {
       method: 'POST',
@@ -103,9 +108,11 @@ const onSimulatePaid = async () => {
       checkoutCharge.value.status = 'PAID';
       checkoutCharge.value.paidAt = new Date().toISOString();
       if (checkoutInterval) clearInterval(checkoutInterval);
+    } else {
+      simulateError.value = json.message || 'Gagal menyimulasikan pembayaran';
     }
   } catch (e) {
-    console.error(e);
+    simulateError.value = 'Gagal menyimulasikan pembayaran';
   }
 };
 
@@ -544,8 +551,8 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <!-- DEMO / TEST SIMULATOR BANNER -->
-          <div class="mt-6 pt-4 border-t border-slate-100">
+          <!-- DEMO / TEST SIMULATOR BANNER (hanya saat SANDBOX_MODE aktif di server) -->
+          <div v-if="showSimulate" class="mt-6 pt-4 border-t border-slate-100">
             <div class="p-2.5 rounded-xl bg-slate-100/80 border border-slate-200 flex items-center justify-between gap-2">
               <div class="flex items-center gap-2 text-[11px] text-slate-500">
                 <Zap :size="13" class="text-amber-500 shrink-0" />
@@ -558,6 +565,7 @@ onUnmounted(() => {
                 Simulasi Bayar
               </button>
             </div>
+            <p v-if="simulateError" class="mt-1.5 text-[11px] text-rose-600">{{ simulateError }}</p>
           </div>
         </div>
       </div>

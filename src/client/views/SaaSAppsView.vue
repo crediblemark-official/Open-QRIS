@@ -27,6 +27,7 @@ const pairingApp = ref<Tenant | null>(null);
 
 // Settings / Telegram Modal State
 const settingsApp = ref<Tenant | null>(null);
+const settingsModalRef = ref<InstanceType<typeof SettingsModal> | null>(null);
 
 // Summary metrics
 const totalAppsCount = computed(() => props.tenants.length);
@@ -70,29 +71,35 @@ const handleTestTelegram = async (data: { botToken: string; chatId: string }) =>
   if (!settingsApp.value) return;
 
   const token = localStorage.getItem('qris_admin_token') || '';
-  const res = await fetch('/v1/merchant/telegram-test', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({
-      bot_token: data.botToken,
-      chat_id: data.chatId,
-    }),
-  });
-  const result = await res.json();
+  try {
+    const res = await fetch('/v1/merchant/telegram-test', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        bot_token: data.botToken,
+        chat_id: data.chatId,
+      }),
+    });
+    const result = await res.json();
 
-  // Update modal state via exposed methods
-  const modal = document.querySelector('[data-settings-modal]');
-  if (modal) {
-    const vueInstance = (modal as any).__vueParentComponent;
-    if (vueInstance) {
+    // Update state modal lewat ref komponen (selector DOM [data-settings-modal] tidak pernah ada)
+    const modal = settingsModalRef.value;
+    if (modal) {
+      modal.setTestingTelegram(false);
       if (res.ok && result.success) {
-        vueInstance.exposed.setTelegramTestSuccess('Pesan tes berhasil dikirim! Silakan periksa Telegram Anda.');
+        modal.setTelegramTestSuccess('Pesan tes berhasil dikirim! Silakan periksa Telegram Anda.');
       } else {
-        vueInstance.exposed.setTelegramTestError(result.message || 'Gagal mengirim pesan ke Telegram');
+        modal.setTelegramTestError(result.message || 'Gagal mengirim pesan ke Telegram');
       }
+    }
+  } catch (e) {
+    const modal = settingsModalRef.value;
+    if (modal) {
+      modal.setTestingTelegram(false);
+      modal.setTelegramTestError('Gagal mengirim pesan tes. Periksa koneksi Anda.');
     }
   }
 };
@@ -210,6 +217,7 @@ const handleSaveSettings = async (data: {
 
     <!-- Settings Modal -->
     <SettingsModal
+      ref="settingsModalRef"
       :app="settingsApp"
       @close="closeSettingsModal"
       @save="handleSaveSettings"

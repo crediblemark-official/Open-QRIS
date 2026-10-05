@@ -4,39 +4,52 @@ import { eq, desc, isNull } from 'drizzle-orm';
 import type { Tenant, NewTenant } from '../schema';
 
 export class TenantRepository {
+  /**
+   * Kolom DB bernama `static_qris` (key `staticQris`), tetapi type TenantApp di server
+   * dan type Tenant di client membaca `staticQRIS`. Ekspos keduanya agar QRIS toko
+   * merchant benar-benar terbaca (dulu selalu undefined -> jatuh ke default platform).
+   */
+  private mapRow(t: Tenant) {
+    return { ...t, staticQRIS: t.staticQris ?? undefined };
+  }
+
   async getAll() {
-    return db.select().from(tenants).orderBy(desc(tenants.createdAt));
+    const rows = await db.select().from(tenants).orderBy(desc(tenants.createdAt));
+    return rows.map((t) => this.mapRow(t));
   }
 
   async getById(id: string) {
     const [tenant] = await db.select().from(tenants).where(eq(tenants.id, id)).limit(1);
-    return tenant;
+    return tenant ? this.mapRow(tenant) : undefined;
   }
 
   async getBySecretKey(secretKey: string) {
     const [tenant] = await db.select().from(tenants).where(eq(tenants.secretKey, secretKey)).limit(1);
-    return tenant;
+    return tenant ? this.mapRow(tenant) : undefined;
   }
 
   async getByPublicKey(publicKey: string) {
     const [tenant] = await db.select().from(tenants).where(eq(tenants.publicKey, publicKey)).limit(1);
-    return tenant;
+    return tenant ? this.mapRow(tenant) : undefined;
   }
 
   async getByDeviceToken(deviceToken: string) {
     if (!deviceToken) return undefined;
     const [tenant] = await db.select().from(tenants).where(eq(tenants.deviceToken, deviceToken)).limit(1);
-    return tenant;
+    return tenant ? this.mapRow(tenant) : undefined;
   }
 
   async create(data: typeof tenants.$inferInsert) {
-    const [tenant] = await db.insert(tenants).values(data).returning();
-    return tenant;
+    const rows = await db.insert(tenants).values(data).returning();
+    if (!rows[0]) {
+      throw new Error('Gagal membuat tenant: tidak ada row yang di-return oleh insert');
+    }
+    return this.mapRow(rows[0]);
   }
 
   async update(id: string, patch: Partial<typeof tenants.$inferInsert>) {
     const [tenant] = await db.update(tenants).set(patch).where(eq(tenants.id, id)).returning();
-    return tenant;
+    return tenant ? this.mapRow(tenant) : undefined;
   }
 
   async delete(id: string) {

@@ -4,6 +4,7 @@
  */
 
 import QRCode from 'qrcode';
+import { randomBytes } from 'crypto';
 import { convertToDynamicQRIS } from '../core/emvco';
 import { store, type Charge, type TenantApp } from './store';
 
@@ -65,7 +66,8 @@ export async function createDynamicCharge(
   const expiryMins = input.expiryMinutes || settings.expiryMinutes || 30;
   const expiresAt = new Date(Date.now() + expiryMins * 60 * 1000);
 
-  const chargeId = `ch_${Math.random().toString(36).substring(2, 10)}${Math.random().toString(36).substring(2, 6)}`;
+  // Charge ID adalah capability token untuk URL checkout publik -> harus unpredictably (CSPRNG)
+  const chargeId = `ch_${randomBytes(8).toString('hex')}`;
 
   const charge: Charge = {
     id: chargeId,

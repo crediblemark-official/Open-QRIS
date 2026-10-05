@@ -3,8 +3,12 @@ import { parseIncomingNotification } from '../core/notificationParser';
 import { store } from '../services/store';
 import { dispatchPaymentWebhook } from '../services/webhook';
 import { sendPaymentAlert } from '../services/telegram';
-import { authGuard, adminGuard } from '../middleware/auth';
+import { authGuard, adminGuard, jwtAuth, resolveAuthUser } from '../middleware/auth';
 import { createHash } from 'crypto';
+
+// Sandbox: mengizinkan tombol "Simulasi Bayar" pada checkout publik tanpa login.
+// Default MATI (401) karena siapa pun yang mengetahui Charge ID bisa menandai tagihan lunas.
+export const isSandboxMode = () => process.env.SANDBOX_MODE === 'true';
 
 // In-Memory Idempotency Deduplication Set (1 hour sliding window)
 const processedHashes = new Map<string, number>();
@@ -110,14 +114,16 @@ export const webhooksRoutes = new Elysia({ prefix: '/v1' })
         };
       }
 
-      await store.updateChargeStatus(charge.id, 'PAID');
+      // Update dulu, lalu dispatch dengan row terbaru agar payload webhook
+      // membawa status "PAID" dan paid_at (sesuai dokumentasi README)
+      const paidCharge = (await store.updateChargeStatus(charge.id, 'PAID')) ?? charge;
 
       const tenant = matchedTenant || await store.getTenantById(charge.tenantId);
       if (tenant) {
-        dispatchPaymentWebhook(charge, tenant).catch((e) =>
+        dispatchPaymentWebhook(paidCharge, tenant).catch((e) =>
           console.error('Error dispatching webhook', e)
         );
-        sendPaymentAlert(tenant, charge, { bank: detectedBank, sender: detectedSender }).catch((e) =>
+        sendPaymentAlert(tenant, paidCharge, { bank: detectedBank, sender: detectedSender }).catch((e) =>
           console.error('Error dispatching Telegram alert', e)
         );
       }
@@ -187,10 +193,21 @@ export const webhooksRoutes = new Elysia({ prefix: '/v1' })
       detail: { tags: ['Webhooks'], summary: 'Heartbeat ping status HP Android OpenQRIS Listener' },
     }
   )
-  .use(authGuard)
+  .use(jwtAuth)
   .post(
     '/charges/:id/simulate-paid',
-    async ({ authUser, params, set }: any) => {
+    async ({ headers, jwt, params, set }: any) => {
+      // Autentikasi manual: route ini juga melayani checkout publik saat SANDBOX_MODE=true
+      const authUser = await resolveAuthUser(headers, jwt);
+      if (!authUser && !isSandboxMode()) {
+        set.status = 401;
+        return {
+          success: false,
+          message:
+            'Akses ditolak: silakan login, atau aktifkan SANDBOX_MODE=true di server untuk mengizinkan Simulasi Bayar di checkout publik.',
+        };
+      }
+
       const charge = await store.getChargeById(params.id);
       if (!charge) {
         set.status = 404;
@@ -202,12 +219,12 @@ export const webhooksRoutes = new Elysia({ prefix: '/v1' })
         return { success: false, message: 'Akses ditolak: Anda hanya dapat mensimulasikan tagihan toko Anda sendiri' };
       }
 
-      await store.updateChargeStatus(charge.id, 'PAID');
+      const paidCharge = (await store.updateChargeStatus(charge.id, 'PAID')) ?? charge;
       const tenant = await store.getTenantById(charge.tenantId);
       let webhookDispatched = false;
       if (tenant) {
-        webhookDispatched = await dispatchPaymentWebhook(charge, tenant);
-        sendPaymentAlert(tenant, charge, { bank: 'SIMULASI', sender: 'Merchant Sandbox' }).catch((e) =>
+        webhookDispatched = await dispatchPaymentWebhook(paidCharge, tenant);
+        sendPaymentAlert(tenant, paidCharge, { bank: 'SIMULASI', sender: 'Merchant Sandbox' }).catch((e) =>
           console.error('Error dispatching Telegram alert', e)
         );
       }
@@ -221,9 +238,10 @@ export const webhooksRoutes = new Elysia({ prefix: '/v1' })
       };
     },
     {
-      detail: { tags: ['Webhooks'], summary: 'Simulasi pembayaran sukses tagihan' },
+      detail: { tags: ['Webhooks'], summary: 'Simulasi pembayaran sukses tagihan (login, atau publik jika SANDBOX_MODE=true)' },
     }
   )
+  .use(authGuard)
   .post(
     '/webhooks/resend/:id',
     async ({ authUser, params, set }: any) => {

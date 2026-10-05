@@ -241,7 +241,7 @@ ADMIN_EMAILS=info.rasyiqi@gmail.com,admin@bisnisanda.com
 HEXCLAVE_API_URL=https://apigcp.hexclave.com
 HEXCLAVE_PROJECT_ID=f25f20d3-02b5-487a-a5f6-baa773a5ebbc
 HEXCLAVE_PUBLISHABLE_CLIENT_KEY=pck_mb44mybmr9zvjm3ny7jx5rs2by2n431faawcwp1ebb5t8
-HEXCLAVE_SECRET_SERVER_KEY=ssk_4ct5x0ddfb2pqeyb40sdj98jye8b4m9vfezpptfrd58pg
+HEXCLAVE_SECRET_SERVER_KEY=ssk_YOUR_SECRET_SERVER_KEY
 ```
 
 ---
@@ -366,7 +366,7 @@ File APK siap pakai akan tersedia di:
    ```text
    http://IP_SERVER_ANDA:3000/v1/webhooks/listener
    ```
-4. Masukkan **Device Token / Secret Key** toko Anda (tersedia di menu Merchant Dashboard).
+4. Masukkan **Device Token** toko Anda (bisa didapatkan di dashboard menu **Listener** / **SaaS Clients -> Pairing HP**). Jangan masukkan Secret Key (`sk_live_`) di HP - Secret Key hanya untuk verifikasi webhook di server.
 5. Klik **"Tes Sinyal Gateway"**. Jika muncul respon `HTTP 200`, HP siap digunakan!
 
 ---

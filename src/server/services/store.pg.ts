@@ -9,6 +9,7 @@ import { userRepo } from '../../db/repositories/user.repo';
 import { webhookLogRepo } from '../../db/repositories/webhook.repo';
 import { auditLogRepo } from '../../db/repositories/audit.repo';
 import { settingsRepo } from '../../db/repositories/settings.repo';
+import { randomBytes } from 'crypto';
 
 // Import and re-export types
 import type { 
@@ -74,15 +75,16 @@ class DrizzleStore {
     telegramChatId?: string;
     subscriptionTier?: string;
   }) {
-    const randomHex = () => Math.random().toString(36).substring(2, 10);
+    // Kredensial & token dibuat dengan CSPRNG (crypto.randomBytes), bukan Math.random()
+    const randomHex = (bytes: number) => randomBytes(bytes).toString('hex');
     const tenant = {
-      id: `app_${randomHex()}`,
+      id: `app_${randomHex(6)}`,
       name: payload.name,
-      publicKey: `pk_live_${randomHex()}${randomHex()}`,
-      secretKey: `sk_live_${randomHex()}${randomHex()}${randomHex()}`,
+      publicKey: `pk_live_${randomHex(16)}`,
+      secretKey: `sk_live_${randomHex(32)}`,
       webhookUrl: payload.webhookUrl,
       staticQris: payload.staticQRIS || null,
-      deviceToken: `dev_${randomHex()}${randomHex()}`,
+      deviceToken: `dev_${randomHex(16)}`,
       telegramBotToken: payload.telegramBotToken || null,
       telegramChatId: payload.telegramChatId || null,
       subscriptionTier: payload.subscriptionTier || 'pro',
@@ -124,9 +126,9 @@ class DrizzleStore {
     role?: 'admin' | 'merchant';
     tenantId?: string;
   }) {
-    const randomHex = () => Math.random().toString(36).substring(2, 10);
+    const randomHex = (bytes: number) => randomBytes(bytes).toString('hex');
     return userRepo.create({
-      id: payload.id || `usr_${randomHex()}`,
+      id: payload.id || `usr_${randomHex(8)}`,
       email: payload.email.toLowerCase().trim(),
       passwordHash: payload.passwordHash,
       name: payload.name,
@@ -163,6 +165,14 @@ class DrizzleStore {
 
   async getChargesPaginated(options: ChargeFilterOptions = {}): Promise<PaginatedResult<Charge>> {
     return chargeRepo.getPaginated(options);
+  }
+
+  async getChargesStatusCounts(options: {
+    tenantId?: string;
+    search?: string;
+    dateRange?: string;
+  } = {}) {
+    return chargeRepo.getStatusCounts(options);
   }
 
   async getChargeById(id: string) {
