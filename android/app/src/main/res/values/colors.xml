@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Brand QRIS Red -->
+    <color name="brand_qris_red">#D71920</color>
+    <color name="brand_qris_red_dark">#B9141A</color>
+    <color name="brand_qris_red_light">#FEF2F2</color>
+    <color name="brand_qris_red_border">#FECACA</color>
+
+    <!-- Neutrals -->
+    <color name="bg_screen">#FFFFFF</color>
+    <color name="bg_surface">#F8FAFC</color>
+    <color name="border_divider">#E2E8F0</color>
+    <color name="text_primary">#0F172A</color>
+    <color name="text_secondary">#475569</color>
+    <color name="text_muted">#94A3B8</color>
+    <color name="white">#FFFFFF</color>
+
+    <!-- Accents -->
+    <color name="emerald_active">#059669</color>
+    <color name="emerald_light">#ECFDF5</color>
+    <color name="emerald_border">#A7F3D0</color>
+
+    <color name="amber_warning">#D97706</color>
+    <color name="amber_light">#FFFBEB</color>
+    <color name="amber_border">#FDE68A</color>
+
+    <color name="rose_error">#E11D48</color>
+    <color name="rose_light">#FFF1F2</color>
+    <color name="rose_border">#FECDD3</color>
+</resources>
